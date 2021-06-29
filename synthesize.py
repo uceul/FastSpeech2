@@ -1,5 +1,6 @@
 import re
 import argparse
+import uuid
 from string import punctuation
 
 import torch
@@ -13,9 +14,11 @@ from utils.model import get_model, get_vocoder
 from utils.tools import to_device, synth_samples
 from dataset import TextDataset
 from text import text_to_sequence
+from sys import stdin, exit
+
+import time
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
 def read_lexicon(lex_path):
     lexicon = {}
@@ -45,8 +48,8 @@ def preprocess_english(text, preprocess_config):
     phones = re.sub(r"\{[^\w\s]?\}", "{sp}", phones)
     phones = phones.replace("}{", " ")
 
-    print("Raw Text Sequence: {}".format(text))
-    print("Phoneme Sequence: {}".format(phones))
+    # print("Raw Text Sequence: {}".format(text))
+    # print("Phoneme Sequence: {}".format(phones))
     sequence = np.array(
         text_to_sequence(
             phones, preprocess_config["preprocessing"]["text"]["text_cleaners"]
@@ -73,8 +76,8 @@ def preprocess_mandarin(text, preprocess_config):
             phones.append("sp")
 
     phones = "{" + " ".join(phones) + "}"
-    print("Raw Text Sequence: {}".format(text))
-    print("Phoneme Sequence: {}".format(phones))
+    # print("Raw Text Sequence: {}".format(text))
+    # print("Phoneme Sequence: {}".format(phones))
     sequence = np.array(
         text_to_sequence(
             phones, preprocess_config["preprocessing"]["text"]["text_cleaners"]
@@ -92,12 +95,14 @@ def synthesize(model, step, configs, vocoder, batchs, control_values):
         batch = to_device(batch, device)
         with torch.no_grad():
             # Forward
+            start_time = time.time()
             output = model(
                 *(batch[2:]),
                 p_control=pitch_control,
                 e_control=energy_control,
                 d_control=duration_control
             )
+            mel_time = time.time()
             synth_samples(
                 batch,
                 output,
@@ -106,18 +111,28 @@ def synthesize(model, step, configs, vocoder, batchs, control_values):
                 preprocess_config,
                 train_config["path"]["result_path"],
             )
-
+            full_time = time.time()
+            # print("mel_time: {}, wav_time {}, full_time: {}".format(mel_time - start_time, full_time - mel_time, full_time - start_time))
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--restore_step", type=int, required=True)
+
+    parser.add_argument(
+        "--text_folder",
+        type=str,
+        required=False,
+        help="If --persistent is set, this directory will be continuously scanned for input texts",
+    )
+
+
     parser.add_argument(
         "--mode",
         type=str,
-        choices=["batch", "single"],
+        choices=["batch", "single", "stdin"],
         required=True,
-        help="Synthesize a whole dataset or a single sentence",
+        help="Synthesize a whole datase, a single sentence or multiple stdin input texts",
     )
     parser.add_argument(
         "--source",
@@ -189,6 +204,33 @@ if __name__ == "__main__":
 
     # Load vocoder
     vocoder = get_vocoder(model_config, device)
+
+    if args.mode == "stdin":
+        speakers = np.array([args.speaker_id])
+        control_values = args.pitch_control, args.energy_control, args.duration_control
+        cache_dict = {}
+        print("Up and running! Waiting for inputs on stdin...")
+        try:
+            for line in stdin:
+                input_txt = line.rstrip()
+                if input_txt in [None, ""]:
+                    continue
+                # TODO: Why 100 char limit?
+                if input_txt in cache_dict:
+                    print("{}.wav".format(cache_dict[input_txt]))
+                else:
+                    ids = [str(uuid.uuid4())]
+                    cache_dict[input_txt] = ids[0]
+                    raw_texts = [input_txt[:100]]
+                    texts = np.array([preprocess_english(input_txt, preprocess_config)])
+                    text_lens = np.array([len(texts[0])])
+                    batchs = [(ids, raw_texts, speakers, texts, text_lens, max(text_lens))]
+                    synthesize(model, args.restore_step, configs, vocoder, batchs, control_values)
+                    print("{}.wav".format(ids[0]))
+
+        except KeyboardInterrupt:
+            print("Recieved SIGINT, exiting...")
+            exit(0)
 
     # Preprocess texts
     if args.mode == "batch":

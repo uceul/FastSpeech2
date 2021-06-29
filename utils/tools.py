@@ -163,6 +163,8 @@ def synth_one_sample(targets, predictions, vocoder, model_config, preprocess_con
 
 def synth_samples(targets, predictions, vocoder, model_config, preprocess_config, path):
 
+    import time
+    start_time = time.time()
     basenames = targets[0]
     for i in range(len(predictions[0])):
         basename = basenames[i]
@@ -204,6 +206,10 @@ def synth_samples(targets, predictions, vocoder, model_config, preprocess_config
     wav_predictions = vocoder_infer(
         mel_predictions, vocoder, model_config, preprocess_config, lengths=lengths
     )
+
+    wav_time = time.time()
+
+    # print("WaveGAN Inference time: {}".format(wav_time - start_time))
 
     sampling_rate = preprocess_config["preprocessing"]["audio"]["sampling_rate"]
     for wav, basename in zip(wav_predictions, basenames):
