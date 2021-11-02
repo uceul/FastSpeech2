@@ -13,9 +13,10 @@ from utils.model import get_model, get_vocoder
 from utils.tools import to_device, synth_samples
 from dataset import TextDataset
 from text import text_to_sequence
+from sys import stdin, exit
+import time
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
 def read_lexicon(lex_path):
     lexicon = {}
@@ -40,9 +41,11 @@ def preprocess_english(text, preprocess_config):
         if w.lower() in lexicon:
             phones += lexicon[w.lower()]
         else:
+            print("Word not found in dict: {}".format(w))
             phones += list(filter(lambda p: p != " ", g2p(w)))
     phones = "{" + "}{".join(phones) + "}"
     phones = re.sub(r"\{[^\w\s]?\}", "{sp}", phones)
+    phones += "{sp}"
     phones = phones.replace("}{", " ")
 
     print("Raw Text Sequence: {}".format(text))
@@ -52,7 +55,7 @@ def preprocess_english(text, preprocess_config):
             phones, preprocess_config["preprocessing"]["text"]["text_cleaners"]
         )
     )
-
+    print("len phones: {}".format(len(sequence)))
     return np.array(sequence)
 
 
@@ -83,6 +86,208 @@ def preprocess_mandarin(text, preprocess_config):
 
     return np.array(sequence)
 
+def pitch_control_word_to_phoneme(pitch_control_word_level, text):
+    text = text.rstrip(punctuation)
+    lexicon = read_lexicon(preprocess_config["path"]["lexicon_path"])
+    pitch_control_phoneme_level = []
+    g2p = G2p()
+
+    words = re.split(r"([,;.\-\?\!\s+])", text)
+    proper_words = [word for word in words if re.search('[a-zA-Z]', word) is not None]
+    if len(proper_words) != len(pitch_control_word_level):
+        print("Word amount and word level pitch control parameter amount does not match!")
+        print("pitch control parameters amount: {} (parameters: {})".format(len(pitch_control_word_level), pitch_control_word_level))
+        print("word amount: {} (words: {})".format(len(proper_words), proper_words))
+        return 1.0
+    proper_word_index = 0
+    print(proper_words)    
+
+    for w in words: 
+        if w.lower() in lexicon:
+            phone_amount = len(lexicon[w.lower()])
+        else:
+            print("Word not found in dict: {}".format(w))
+            phone_amount = len(list(filter(lambda p: p != " ", g2p(w))))
+        pitch_control_phoneme_level += [pitch_control_word_level[proper_word_index]] * phone_amount
+        if w.lower() == proper_words[proper_word_index].lower():
+            proper_word_index += 1
+            if proper_word_index >= len(proper_words):
+                break
+    if len(proper_words) != proper_word_index:
+        print("Bug Warnign! len proper words: {}, proper_word_index: {}".format(len(proper_words), proper_word_index))   
+
+    print("PCPL: {}".format(pitch_control_phoneme_level))
+    pitch_control_phoneme_level += [1.0]
+    return pitch_control_phoneme_level
+
+def energy_control_word_to_phoneme(energy_control_word_level, text):
+    text = text.rstrip(punctuation)
+    lexicon = read_lexicon(preprocess_config["path"]["lexicon_path"])
+    energy_control_phoneme_level = []
+    g2p = G2p()
+
+    words = re.split(r"([,;.\-\?\!\s+])", text)
+    proper_words = [word for word in words if re.search('[a-zA-Z]', word) is not None]
+    if len(proper_words) != len(energy_control_word_level):
+        print("Word amount and word level energy control parameter amount does not match!")
+        print("energy control parameters amount: {} (parameters: {})".format(len(energy_control_word_level), energy_control_word_level))
+        print("word amount: {} (words: {})".format(len(proper_words), proper_words))
+        return 1.0
+    proper_word_index = 0
+    print(proper_words)    
+
+    for w in words: 
+        if w.lower() in lexicon:
+            phone_amount = len(lexicon[w.lower()])
+        else:
+            print("Word not found in dict: {}".format(w))
+            phone_amount = len(list(filter(lambda p: p != " ", g2p(w))))
+        energy_control_phoneme_level += [energy_control_word_level[proper_word_index]] * phone_amount
+        if w.lower() == proper_words[proper_word_index].lower():
+            proper_word_index += 1
+            if proper_word_index >= len(proper_words):
+                break
+    if len(proper_words) != proper_word_index:
+        print("Bug Warning! len proper words: {}, proper_word_index: {}".format(len(proper_words), proper_word_index))   
+
+    print("ECPL: {}".format(energy_control_phoneme_level))
+    energy_control_phoneme_level += [1.0]
+    return energy_control_phoneme_level
+
+def duration_control_word_to_phoneme(duration_control_word_level, text):
+    text = text.rstrip(punctuation)
+    lexicon = read_lexicon(preprocess_config["path"]["lexicon_path"])
+    duration_control_phoneme_level = []
+    g2p = G2p()
+
+    words = re.split(r"([,;.\-\?\!\s+])", text)
+    proper_words = [word for word in words if re.search('[a-zA-Z]', word) is not None]
+    if len(proper_words) != len(duration_control_word_level):
+        print("Word amount and word level duration control parameter amount does not match!")
+        print("duration control parameters amount: {} (parameters: {})".format(len(duration_control_word_level), duration_control_word_level))
+        print("word amount: {} (words: {})".format(len(proper_words), proper_words))
+        return 1.0
+    proper_word_index = 0
+    print(proper_words)    
+
+    for w in words: 
+        if w.lower() in lexicon:
+            phone_amount = len(lexicon[w.lower()])
+        else:
+            print("Word not found in dict: {}".format(w))
+            phone_amount = len(list(filter(lambda p: p != " ", g2p(w))))
+        duration_control_phoneme_level += [duration_control_word_level[proper_word_index]] * phone_amount
+        if w.lower() == proper_words[proper_word_index].lower():
+            print(w)
+            proper_word_index += 1
+            if proper_word_index >= len(proper_words):
+                break
+    if len(proper_words) != proper_word_index:
+        print("Bug Warning! len proper words: {}, proper_word_index: {}".format(len(proper_words), proper_word_index))   
+
+    print("DCPL: {}".format(duration_control_phoneme_level))
+    duration_control_phoneme_level += [1.0]
+    return duration_control_phoneme_level
+
+
+# Limits: No error checking,
+#         Additional tags INSIDE emphasis tag will cause weird behaviour!
+#         Only works with procentual parameters! (e.g. <prosody rate=150%>)
+def parse_xml_input(xml_text):
+    cleaned_text = []
+    pitch_control_word_level = []
+    energy_control_word_level = []
+    duration_control_word_level = []
+
+    current_pitch = []
+    current_energy = []
+    current_duration = []
+
+    xml_text = xml_text.replace("<prosody rate", "<prosody-rate").replace("<prosody volume", "<prosody-volume").replace("<prosody range", "<prosody-range")   
+    xml_text = xml_text.replace("</prosody rate", "</prosody-rate").replace("</prosody volume", "</prosody-volume").replace("</prosody range", "</prosody-range")   
+ 
+    # TODO: check for syntax errors!
+    text_parts = re.split(r'[ >]', xml_text)
+    # filter empty strings
+    text_parts = list(filter(None, text_parts))
+    
+    print("text parts: " + str(text_parts))
+
+    for text in text_parts:
+        if text[0] == '<':
+            # tag
+            if text[1] != '/':
+                print("opening tag")
+                # opening tag
+                to_filter = '"% '
+                if text[1:15] == 'prosody-range=':
+                    print("pitch")
+                    # pitch
+                    argument = text[15:].translate({ord(i): None for i in to_filter})
+                    # procentual value to multiplier
+                    argument = float(argument) / 100.0
+                    current_pitch.append(argument)
+                elif text[1:16] == 'prosody-volume=':
+                    print("energy")
+                    # energy
+                    argument = text[16:].translate({ord(i): None for i in to_filter})
+                    argument = float(argument) / 100.0
+                    current_energy.append(argument)
+                elif text[1:14] == 'prosody-rate=':
+                    print("duration")
+                    # duration
+                    argument = text[14:].translate({ord(i): None for i in to_filter})
+                    argument = float(argument) / 100.0
+                    # Higher prosody rate tag means faster speech, but internally duration parameter is handled the opposite way => use inverse
+                    argument = 1.0 / argument
+                    current_duration.append(argument)
+                elif text[1:9] == 'emphasis':
+                    # emphasis
+                    print("emph")
+                    current_duration.append(1.2)
+                    current_pitch.append("HIGH")
+                else:
+                    print("Warning! Unknown tag: {}".format(text)) 
+            else:
+                print("closing tag")
+                if text[2:16] == 'prosody-range':
+                    print("pitch")
+                    # pitch
+                    current_pitch.pop()
+                elif text[2:17] == 'prosody-volume':
+                    print("energy")
+                    # energy
+                    current_energy.pop()
+                elif text[2:15] == 'prosody-rate':
+                    print("duration")
+                    # duration
+                    current_duration.pop()
+                elif text[2:10] == 'emphasis':
+                    # emphasis
+                    print("close emph")
+                    current_duration.pop()
+                    current_pitch.pop()
+                else:
+                    print("Warning! Unknown tag: {}".format(text)) 
+                # closing tag
+
+        else:
+            # text to synthesize
+            cleaned_text.append(text)
+            text_pitch = 1.0 if not current_pitch else current_pitch[-1]
+            text_energy = 1.0 if not current_energy else current_energy[-1]
+            text_duration = 1.0 if not current_duration else current_duration[-1]
+            pitch_control_word_level.append(text_pitch)
+            energy_control_word_level.append(text_energy)
+            duration_control_word_level.append(text_duration)
+        
+    cleaned_text = ' '.join(cleaned_text)
+    print("Cleaned text: " + cleaned_text)
+    print("pitch control: " + str(pitch_control_word_level))
+    print("energy control: " + str(energy_control_word_level))
+    print("duration control: " + str(duration_control_word_level))
+    
+    return cleaned_text, pitch_control_word_level, energy_control_word_level, duration_control_word_level
 
 def synthesize(model, step, configs, vocoder, batchs, control_values):
     preprocess_config, model_config, train_config = configs
@@ -92,12 +297,14 @@ def synthesize(model, step, configs, vocoder, batchs, control_values):
         batch = to_device(batch, device)
         with torch.no_grad():
             # Forward
+            start_time = time.time()
             output = model(
                 *(batch[2:]),
                 p_control=pitch_control,
                 e_control=energy_control,
                 d_control=duration_control
             )
+            mel_time = time.time()
             synth_samples(
                 batch,
                 output,
@@ -106,7 +313,8 @@ def synthesize(model, step, configs, vocoder, batchs, control_values):
                 preprocess_config,
                 train_config["path"]["result_path"],
             )
-
+            full_time = time.time()
+            print("mel_time: {}, wav_time {}, full_time: {}".format(mel_time - start_time, full_time - mel_time, full_time - start_time))
 
 if __name__ == "__main__":
 
@@ -115,7 +323,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--mode",
         type=str,
-        choices=["batch", "single"],
+        choices=["batch", "single", "stdin"],
         required=True,
         help="Synthesize a whole dataset or a single sentence",
     )
@@ -168,6 +376,34 @@ if __name__ == "__main__":
         default=1.0,
         help="control the speed of the whole utterance, larger value for slower speaking rate",
     )
+    parser.add_argument(
+        "--pitch_control_word_level",
+        type=float,
+        nargs='*',
+        action='append',
+        default=[],
+        help="control the pitch of the utterance word by word. One float value per word. Larger value for higher pitch",
+    )
+    parser.add_argument(
+        "--energy_control_word_level",
+        type=float,
+        nargs='*',
+        action='append',
+        default=[],
+        help="control the energy of the utterance word by word. One float value per word. Larger value for higher energy",
+    )
+    parser.add_argument(
+        "--duration_control_word_level",
+        type=float,
+        nargs='*',
+        action='append',
+        default=[],
+        help="control the speed of the utterance word by word. One float value per word. Larger value for slower speaking rate",
+    )
+    parser.add_argument(
+        "--xml_input", 
+        action="store_true",
+        help="If this flag is set, SSML Tags are parsed. Currently supported tags: <emphasis>, <prosody rate>, <prosody volume>, <prosody rage>. Will overwrite all given control parameters")
     args = parser.parse_args()
 
     # Check source texts
@@ -190,6 +426,86 @@ if __name__ == "__main__":
     # Load vocoder
     vocoder = get_vocoder(model_config, device)
 
+    if args.mode == "stdin":
+        speakers = np.array([args.speaker_id])
+        cache_dict = {}
+        print("Up and running! Waiting for inputs on stdin...")
+        try:
+            for line in stdin:
+                input_txt = line.rstrip()
+                if input_txt in [None, ""]:
+                    continue
+                # TODO: Why 100 char limit?
+
+                #get pitch control
+                if args.pitch_control_word_level != []:
+                    print(args.pitch_control_word_level[0])
+                    pitch_control_phoneme_level = pitch_control_word_to_phoneme(args.pitch_control_word_level[0], args.text)
+                    pitch_control = pitch_control_phoneme_level
+                else:
+                    pitch_control = args.pitch_control
+                # get energy control
+                if args.energy_control_word_level != []:
+                    print(args.energy_control_word_level[0])
+                    energy_control_phoneme_level = energy_control_word_to_phoneme(args.energy_control_word_level[0], args.text)
+                    energy_control = energy_control_phoneme_level
+                else:
+                    energy_control = args.energy_control
+                # get duration control
+                if args.duration_control_word_level != []:
+                    print(args.duration_control_word_level[0])
+                    duration_control_phoneme_level = duration_control_word_to_phoneme(args.duration_control_word_level[0], args.text)
+                    duration_control = duration_control_phoneme_level
+                else:
+                    duration_control = args.duration_control
+                control_values = pitch_control, energy_control, duration_control
+
+                if input_txt in cache_dict:
+                    print("{}.wav".format(cache_dict[input_txt]))
+                else:
+                    ids = [str(uuid.uuid4())]
+                    cache_dict[input_txt] = ids[0]
+                    raw_texts = [input_txt[:100]]
+                    texts = np.array([preprocess_english(input_txt, preprocess_config)])
+                    text_lens = np.array([len(texts[0])])
+                    batchs = [(ids, raw_texts, speakers, texts, text_lens, max(text_lens))]
+                    synthesize(model, args.restore_step, configs, vocoder, batchs, control_values)
+                    print("{}.wav".format(ids[0]))
+
+        except KeyboardInterrupt:
+            print("Recieved SIGINT, exiting...")
+            exit(0)
+    if args.xml_input:   
+        text, pitch_control_word_level, energy_control_word_level, duration_control_word_level = parse_xml_input(args.text)
+        pitch_control_phoneme_level = pitch_control_word_to_phoneme(pitch_control_word_level, text)
+        energy_control_phoneme_level = energy_control_word_to_phoneme(energy_control_word_level, text)
+        duration_control_phoneme_level = duration_control_word_to_phoneme(duration_control_word_level, text)
+        control_values = pitch_control_phoneme_level, energy_control_phoneme_level, duration_control_phoneme_level
+    else: 
+    # get control values
+        text = args.text
+        if args.pitch_control_word_level != []:
+            print(args.pitch_control_word_level[0])
+            pitch_control_phoneme_level = pitch_control_word_to_phoneme(args.pitch_control_word_level[0], args.text)
+            pitch_control = pitch_control_phoneme_level
+        else:
+            pitch_control = args.pitch_control
+
+        if args.energy_control_word_level != []:
+            print(args.energy_control_word_level[0])
+            energy_control_phoneme_level = energy_control_word_to_phoneme(args.energy_control_word_level[0], args.text)
+            energy_control = energy_control_phoneme_level
+        else:
+            energy_control = args.energy_control
+
+        if args.duration_control_word_level != []:
+            print(args.duration_control_word_level[0])
+            duration_control_phoneme_level = duration_control_word_to_phoneme(args.duration_control_word_level[0], args.text)
+            duration_control = duration_control_phoneme_level
+        else:
+            duration_control = args.duration_control
+        control_values = pitch_control, energy_control, duration_control
+
     # Preprocess texts
     if args.mode == "batch":
         # Get dataset
@@ -200,15 +516,15 @@ if __name__ == "__main__":
             collate_fn=dataset.collate_fn,
         )
     if args.mode == "single":
-        ids = raw_texts = [args.text[:100]]
+        ids = raw_texts = [text[:100]]
         speakers = np.array([args.speaker_id])
         if preprocess_config["preprocessing"]["text"]["language"] == "en":
-            texts = np.array([preprocess_english(args.text, preprocess_config)])
+            texts = np.array([preprocess_english(text, preprocess_config)])
+        elif preprocess_config["preprocessing"]["text"]["language"] == "de":
+            texts = np.array([preprocess_english(text, preprocess_config)])
         elif preprocess_config["preprocessing"]["text"]["language"] == "zh":
-            texts = np.array([preprocess_mandarin(args.text, preprocess_config)])
+            texts = np.array([preprocess_mandarin(text, preprocess_config)])
         text_lens = np.array([len(texts[0])])
         batchs = [(ids, raw_texts, speakers, texts, text_lens, max(text_lens))]
-
-    control_values = args.pitch_control, args.energy_control, args.duration_control
 
     synthesize(model, args.restore_step, configs, vocoder, batchs, control_values)

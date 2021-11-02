@@ -77,7 +77,7 @@ def main(args, configs):
         for batchs in loader:
             for batch in batchs:
                 batch = to_device(batch, device)
-
+                # breakpoint()
                 # Forward
                 output = model(*(batch[2:]))
 

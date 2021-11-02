@@ -77,11 +77,14 @@ class Preprocessor:
                 if os.path.exists(tg_path):
                     ret = self.process_utterance(speaker, basename)
                     if ret is None:
+                        print("ret is None for {}".format(basename))
                         continue
                     else:
                         info, pitch, energy, n = ret
                     out.append(info)
-
+                else:
+                    print("Missing Textgrid: {}".format(basename))
+                    continue
                 if len(pitch) > 0:
                     pitch_scaler.partial_fit(pitch.reshape((-1, 1)))
                 if len(energy) > 0:
@@ -244,7 +247,7 @@ class Preprocessor:
         )
 
         return (
-            "|".join([basename, speaker, text, raw_text]),
+            "#".join([basename, speaker, text, raw_text]),
             self.remove_outlier(pitch),
             self.remove_outlier(energy),
             mel_spectrogram.shape[1],

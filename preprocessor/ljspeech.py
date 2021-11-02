@@ -15,6 +15,7 @@ def prepare_align(config):
     max_wav_value = config["preprocessing"]["audio"]["max_wav_value"]
     cleaners = config["preprocessing"]["text"]["text_cleaners"]
     speaker = "LJSpeech"
+    print("---ALIGNMENT PREPARATION START---")
     with open(os.path.join(in_dir, "metadata.csv"), encoding="utf-8") as f:
         for line in tqdm(f):
             parts = line.strip().split("|")

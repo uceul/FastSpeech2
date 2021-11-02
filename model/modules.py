@@ -82,7 +82,21 @@ class VarianceAdaptor(nn.Module):
         if target is not None:
             embedding = self.pitch_embedding(torch.bucketize(target, self.pitch_bins))
         else:
+            emph_indices = []
+            # print("control: " + str(control))
+            if type(control) is list:
+                print("if")
+                for i in range(len(control)):
+                   if control[i] == "HIGH":
+                       emph_indices.append(i)
+                       control[i] = 1.0
+                print(control)
+                control = torch.FloatTensor(control).to(device)
             prediction = prediction * control
+            # breakpoint()
+            for idx in emph_indices:
+                breakpoint()
+                prediction[0][idx] = torch.max(prediction) * 1.1
             embedding = self.pitch_embedding(
                 torch.bucketize(prediction, self.pitch_bins)
             )
@@ -93,6 +107,8 @@ class VarianceAdaptor(nn.Module):
         if target is not None:
             embedding = self.energy_embedding(torch.bucketize(target, self.energy_bins))
         else:
+            if type(control) is list:
+                control = torch.FloatTensor(control).to(device)
             prediction = prediction * control
             embedding = self.energy_embedding(
                 torch.bucketize(prediction, self.energy_bins)
@@ -121,7 +137,7 @@ class VarianceAdaptor(nn.Module):
             x = x + pitch_embedding
         if self.energy_feature_level == "phoneme_level":
             energy_prediction, energy_embedding = self.get_energy_embedding(
-                x, energy_target, src_mask, p_control
+                x, energy_target, src_mask, e_control
             )
             x = x + energy_embedding
 
@@ -129,6 +145,8 @@ class VarianceAdaptor(nn.Module):
             x, mel_len = self.length_regulator(x, duration_target, max_len)
             duration_rounded = duration_target
         else:
+            if type(d_control) is list:
+                d_control = torch.FloatTensor(d_control).to(device)
             duration_rounded = torch.clamp(
                 (torch.round(torch.exp(log_duration_prediction) - 1) * d_control),
                 min=0,
@@ -143,7 +161,7 @@ class VarianceAdaptor(nn.Module):
             x = x + pitch_embedding
         if self.energy_feature_level == "frame_level":
             energy_prediction, energy_embedding = self.get_energy_embedding(
-                x, energy_target, mel_mask, p_control
+                x, energy_target, mel_mask, e_control
             )
             x = x + energy_embedding
 
