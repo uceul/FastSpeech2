@@ -44,8 +44,10 @@ def preprocess_english(text, preprocess_config):
             print("Word not found in dict: {}".format(w))
             phones += list(filter(lambda p: p != " ", g2p(w)))
     phones = "{" + "}{".join(phones) + "}"
+    phones = phones.replace("{=}", "{Z0}")
+    print("PHONES =================== {}".format(str(phones)))
     phones = re.sub(r"\{[^\w\s]?\}", "{sp}", phones)
-    phones += "{sp}"
+    phones = phones.replace("{Z0}", "{=}")
     phones = phones.replace("}{", " ")
 
     print("Raw Text Sequence: {}".format(text))
@@ -117,7 +119,8 @@ def pitch_control_word_to_phoneme(pitch_control_word_level, text):
         print("Bug Warnign! len proper words: {}, proper_word_index: {}".format(len(proper_words), proper_word_index))   
 
     print("PCPL: {}".format(pitch_control_phoneme_level))
-    pitch_control_phoneme_level += [1.0]
+    if text[-1] == " ":
+        pitch_control_phoneme_level += [1.0]
     return pitch_control_phoneme_level
 
 def energy_control_word_to_phoneme(energy_control_word_level, text):
@@ -151,7 +154,8 @@ def energy_control_word_to_phoneme(energy_control_word_level, text):
         print("Bug Warning! len proper words: {}, proper_word_index: {}".format(len(proper_words), proper_word_index))   
 
     print("ECPL: {}".format(energy_control_phoneme_level))
-    energy_control_phoneme_level += [1.0]
+    if text[-1] == " ":
+        energy_control_phoneme_level += [1.0]
     return energy_control_phoneme_level
 
 def duration_control_word_to_phoneme(duration_control_word_level, text):
@@ -186,7 +190,8 @@ def duration_control_word_to_phoneme(duration_control_word_level, text):
         print("Bug Warning! len proper words: {}, proper_word_index: {}".format(len(proper_words), proper_word_index))   
 
     print("DCPL: {}".format(duration_control_phoneme_level))
-    duration_control_phoneme_level += [1.0]
+    if text[-1] == " ":
+        duration_control_phoneme_level += [1.0]
     return duration_control_phoneme_level
 
 
@@ -244,7 +249,7 @@ def parse_xml_input(xml_text):
                 elif text[1:9] == 'emphasis':
                     # emphasis
                     print("emph")
-                    current_duration.append(1.2)
+                    current_duration.append(0.85)
                     current_pitch.append("HIGH")
                 else:
                     print("Warning! Unknown tag: {}".format(text)) 
@@ -378,7 +383,6 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--pitch_control_word_level",
-        type=float,
         nargs='*',
         action='append',
         default=[],

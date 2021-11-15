@@ -85,13 +85,11 @@ class VarianceAdaptor(nn.Module):
             emph_indices = []
             # print("control: " + str(control))
             if type(control) is list:
-                print("if")
                 for i in range(len(control)):
                    if control[i] == "HIGH":
                        emph_indices.append(i)
                        control[i] = 1.0
                    control[i] = float(control[i])
-                print(control)
                 control = torch.FloatTensor(control).to(device)
             prediction = prediction * control
             #breakpoint()
